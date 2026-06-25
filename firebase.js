@@ -1,298 +1,248 @@
-// ========================================
-// FIREBASE CONFIGURATION
-// ========================================
-// Import Firebase modules
+// ================================================
+// FILTORA — Firebase Integration
+// ================================================
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getDatabase, ref, onValue, query, limitToLast, orderByKey } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+import { getDatabase, ref, onValue, query, limitToLast, orderByKey, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
-// Firebase configuration
-// GANTI DENGAN KONFIGURASI FIREBASE ANDA!
 const firebaseConfig = {
-  apiKey: "AIzaSyDpSQbX9mj3iJzhkOqjb_B7oHaIl81Nzak",
-  authDomain: "filtora-data.firebaseapp.com",
-  databaseURL: "https://filtora-data-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "filtora-data",
-  storageBucket: "filtora-data.firebasestorage.app",
+  apiKey:            "AIzaSyDpSQbX9mj3iJzhkOqjb_B7oHaIl81Nzak",
+  authDomain:        "filtora-data.firebaseapp.com",
+  databaseURL:       "https://filtora-data-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "filtora-data",
+  storageBucket:     "filtora-data.firebasestorage.app",
   messagingSenderId: "881327176817",
-  appId: "1:881327176817:web:553eda9e9da0569aa52fd0",
-  measurementId: "G-JMHFS671V1"
+  appId:             "1:881327176817:web:553eda9e9da0569aa52fd0",
+  measurementId:     "G-JMHFS671V1"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const app      = initializeApp(firebaseConfig);
 const database = getDatabase(app);
 
-// ========================================
-// GLOBAL VARIABLES
-// ========================================
-let latestSensorData = null;
-let latestPrediction = null;
+// ---- State ----
+let latestSensorData  = null;
+let latestPrediction  = null;
 let sensorDataHistory = [];
-let maxHistoryPoints = 20; // Jumlah data point untuk grafik
+const MAX_HISTORY     = 20;
 
-// ========================================
-// UTILITY FUNCTIONS
-// ========================================
+// ================================================
+// HELPERS
+// ================================================
 
-/**
- * Format timestamp untuk ditampilkan
- */
-function formatTimestamp(timestamp) {
-    if (!timestamp) return 'Tidak tersedia';
-    
-    // Convert Firebase key format back to readable format
-    // 2025-10-15T18-31-30_597593 -> 2025-10-15 18:31:30
-    const cleaned = timestamp.replace('T', ' ').replace(/_.*/, '').replace(/-/g, ':');
-    const parts = cleaned.split(' ');
-    
-    if (parts.length === 2) {
-        const [date, time] = parts;
-        const [year, month, day] = date.split(':');
-        const [hour, minute, second] = time.split(':');
-        
-        return `${day}/${month}/${year} ${hour}:${minute}:${second}`;
-    }
-    
-    return timestamp;
+function formatTimestamp(ts) {
+  if (!ts) return 'Tidak tersedia';
+  // Key format: 2025-10-15T18-31-30_597593
+  const cleaned = ts.replace('T', ' ').replace(/_.*/, '');
+  const parts   = cleaned.split(' ');
+  if (parts.length === 2) {
+    const [date, time] = parts;
+    const [y, m, d]    = date.split('-');
+    const [H, M, S]    = time.split('-');
+    return `${d}/${m}/${y} ${H}:${M}:${S}`;
+  }
+  return ts;
 }
 
-/**
- * Update connection status indicator
- */
-function updateConnectionStatus(connected) {
-    const statusDot = document.getElementById('statusDot');
-    const statusText = document.getElementById('statusText');
-    
-    if (connected) {
-        statusDot.className = 'status-dot status-connected';
-        statusText.textContent = 'Terhubung';
-    } else {
-        statusDot.className = 'status-dot status-connecting';
-        statusText.textContent = 'Menghubungkan...';
-    }
+function el(id) { return document.getElementById(id); }
+
+// ================================================
+// UI UPDATERS
+// ================================================
+
+function setConnectionStatus(connected) {
+  const dot  = el('statusDot');
+  const text = el('statusText');
+  if (!dot || !text) return;
+
+  if (connected) {
+    dot.className  = 'dot on';
+    text.textContent = 'TERHUBUNG';
+  } else {
+    dot.className  = 'dot off';
+    text.textContent = 'MENGHUBUNGKAN...';
+  }
 }
 
-/**
- * Update quality indicator
- */
-function updateQualityIndicator(label, cluster, code) {
-    const indicator = document.getElementById('qualityIndicator');
-    const labelElement = document.getElementById('qualityLabel');
-    const subtextElement = document.getElementById('qualitySubtext');
-    const statCluster = document.getElementById('statCluster');
-    const statCode = document.getElementById('statCode');
-    
-    // Update label
-    labelElement.textContent = label || 'Tidak Diketahui';
-    
-    // Update subtext
-    const subtexts = {
-        'Baik': 'Kualitas udara sangat baik',
-        'Sedang': 'Kualitas udara cukup baik',
-        'Buruk': 'Kualitas udara buruk'
-    };
-    subtextElement.textContent = subtexts[label] || 'Menunggu data...';
-    
-    // Update class for color
-    indicator.className = 'quality-indicator';
-    if (label === 'Baik') {
-        indicator.classList.add('quality-baik');
-    } else if (label === 'Sedang') {
-        indicator.classList.add('quality-sedang');
-    } else if (label === 'Buruk') {
-        indicator.classList.add('quality-buruk');
-    } else {
-        indicator.classList.add('quality-sedang');
-    }
-    
-    // Update stats
-    statCluster.textContent = cluster !== undefined ? cluster : '-';
-    statCode.textContent = code !== undefined ? code : '-';
+function setLastUpdate(ts) {
+  const e = el('lastUpdate');
+  if (e) e.innerHTML = `<i class="bi bi-clock"></i>&nbsp;Diperbarui: ${formatTimestamp(ts)}`;
 }
 
-/**
- * Update sensor display
- */
-function updateSensorDisplay(data) {
-    if (!data) return;
-    
-    // Update each sensor value
-    const sensors = {
-        'sensorMQ135': data.mq135,
-        'sensorMQ2': data.mq2,
-        'sensorMQ5': data.mq5,
-        'sensorPM25': data.pm25,
-        'sensorPM10': data.pm10,
-        'sensorTemp': data.temperature,
-        'sensorHumid': data.humidity
-    };
-    
-    for (const [id, value] of Object.entries(sensors)) {
-        const element = document.getElementById(id);
-        if (element && value !== undefined) {
-            element.innerHTML = `${parseFloat(value).toFixed(1)}<span class="sensor-unit">${element.querySelector('.sensor-unit').textContent}</span>`;
-        }
-    }
+function setQualityBanner(label, cluster, code) {
+  const indicator = el('qualityIndicator');
+  const labelEl   = el('qualityLabel');
+  const subtextEl = el('qualitySubtext');
+  const clusterEl = el('statCluster');
+  const codeEl    = el('statCode');
+
+  if (labelEl)   labelEl.textContent   = (label || 'TIDAK DIKETAHUI').toUpperCase();
+  if (clusterEl) clusterEl.textContent = cluster !== undefined ? cluster : '—';
+  if (codeEl)    codeEl.textContent    = code    !== undefined ? code    : '—';
+
+  const subtexts = {
+    'Baik':   'Kualitas udara sangat baik — aman untuk beraktivitas di luar ruangan',
+    'Sedang': 'Kualitas udara cukup baik — pantau kondisi secara berkala',
+    'Buruk':  'Kualitas udara buruk — aktifkan purifier, batasi aktivitas luar ruangan'
+  };
+  if (subtextEl) subtextEl.textContent = subtexts[label] || 'Menunggu data dari sensor...';
+
+  if (indicator) {
+    indicator.className = 'quality-left';
+    if      (label === 'Baik')   indicator.classList.add('q-baik');
+    else if (label === 'Buruk')  indicator.classList.add('q-buruk');
+    else                          indicator.classList.add('q-sedang');
+  }
 }
 
-/**
- * Update last update time
- */
-function updateLastUpdateTime(timestamp) {
-    const element = document.getElementById('lastUpdate');
-    if (element) {
-        element.innerHTML = `<i class="bi bi-clock"></i> Diperbarui: ${formatTimestamp(timestamp)}`;
+function setSensorValues(data) {
+  if (!data) return;
+  const map = {
+    sensorMQ135: data.mq135,
+    sensorMQ2:   data.mq2,
+    sensorMQ5:   data.mq5,
+    sensorPM25:  data.pm25,
+    sensorPM10:  data.pm10,
+    sensorTemp:  data.temperature,
+    sensorHumid: data.humidity
+  };
+  for (const [id, val] of Object.entries(map)) {
+    const e = el(id);
+    if (e && val !== undefined && val !== null) {
+      e.textContent = parseFloat(val).toFixed(1);
     }
+  }
 }
 
-/**
- * Add data to history for charts
- */
-function addToHistory(timestamp, data) {
-    // Create data point
-    const dataPoint = {
-        timestamp: timestamp,
-        time: formatTimestamp(timestamp).split(' ')[1] || '', // Get time part only
-        mq135: data.mq135,
-        mq2: data.mq2,
-        mq5: data.mq5,
-        pm25: data.pm25,
-        pm10: data.pm10,
-        temperature: data.temperature,
-        humidity: data.humidity
-    };
-    
-    // Add to history
-    sensorDataHistory.push(dataPoint);
-    
-    // Limit history size
-    if (sensorDataHistory.length > maxHistoryPoints) {
-        sensorDataHistory.shift(); // Remove oldest
-    }
-    
-    // Trigger chart update event
-    window.dispatchEvent(new CustomEvent('dataUpdated', { detail: sensorDataHistory }));
+function setMLResult(label, cluster, code, timestamp) {
+  const labelEl   = el('mlLabel');
+  const clusterEl = el('mlCluster');
+  const codeEl    = el('mlCode');
+  const tsEl      = el('mlTs');
+
+  if (labelEl)   labelEl.textContent   = label   || '—';
+  if (clusterEl) clusterEl.textContent = cluster !== undefined ? cluster : '—';
+  if (codeEl)    codeEl.textContent    = code    !== undefined ? code    : '—';
+  if (tsEl && timestamp) {
+    tsEl.textContent = `Prediksi terakhir: ${formatTimestamp(timestamp)}`;
+  }
 }
 
-// ========================================
+// ================================================
+// HISTORY
+// ================================================
+
+function pushHistory(timestamp, data) {
+  sensorDataHistory.push({
+    timestamp,
+    time:        (formatTimestamp(timestamp).split(' ')[1] || ''),
+    mq135:       data.mq135,
+    mq2:         data.mq2,
+    mq5:         data.mq5,
+    pm25:        data.pm25,
+    pm10:        data.pm10,
+    temperature: data.temperature,
+    humidity:    data.humidity
+  });
+  if (sensorDataHistory.length > MAX_HISTORY) sensorDataHistory.shift();
+  window.dispatchEvent(new CustomEvent('dataUpdated', { detail: sensorDataHistory }));
+}
+
+// ================================================
 // FIREBASE LISTENERS
-// ========================================
+// ================================================
 
-/**
- * Listen to sensor data changes
- */
-function listenToSensorData() {
-    // Get reference to sensor_data, ordered by key, last 20 items
-    const sensorRef = query(
-        ref(database, 'sensor_data'),
-        orderByKey(),
-        limitToLast(20)
-    );
-    
-    onValue(sensorRef, (snapshot) => {
-        updateConnectionStatus(true);
-        
-        if (snapshot.exists()) {
-            const data = snapshot.val();
-            
-            // Clear history untuk rebuild dengan data terbaru
-            sensorDataHistory = [];
-            
-            // Get all entries and sort by timestamp
-            const entries = Object.entries(data).sort((a, b) => {
-                return a[0].localeCompare(b[0]); // Sort by key (timestamp)
-            });
-            
-            // Process all entries
-            entries.forEach(([timestamp, sensorData]) => {
-                addToHistory(timestamp, sensorData);
-            });
-            
-            // Get latest data
-            const latestEntry = entries[entries.length - 1];
-            if (latestEntry) {
-                const [timestamp, sensorData] = latestEntry;
-                latestSensorData = sensorData;
-                
-                // Update display
-                updateSensorDisplay(sensorData);
-                updateLastUpdateTime(timestamp);
-                
-                console.log('✅ Sensor data updated:', timestamp);
-            }
-        } else {
-            console.log('⚠️ No sensor data available');
-        }
-    }, (error) => {
-        console.error('❌ Error reading sensor data:', error);
-        updateConnectionStatus(false);
-    });
+function listenSensorData() {
+  const q = query(ref(database, 'sensor_data'), orderByKey(), limitToLast(MAX_HISTORY));
+
+  onValue(q, (snap) => {
+    setConnectionStatus(true);
+    if (!snap.exists()) return;
+
+    const entries = Object.entries(snap.val()).sort((a, b) => a[0].localeCompare(b[0]));
+
+    // Rebuild history
+    sensorDataHistory = [];
+    entries.forEach(([ts, data]) => pushHistory(ts, data));
+
+    // Latest entry → update UI
+    const [lastTs, lastData] = entries[entries.length - 1];
+    latestSensorData = lastData;
+    setSensorValues(lastData);
+    setLastUpdate(lastTs);
+
+    console.log('✅ Sensor data updated:', lastTs);
+  }, (err) => {
+    console.error('❌ Sensor data error:', err);
+    setConnectionStatus(false);
+  });
 }
 
-/**
- * Listen to prediction changes
- */
-function listenToPredictions() {
-    // Get reference to predictions, last item
-    const predictionRef = query(
-        ref(database, 'predictions'),
-        orderByKey(),
-        limitToLast(1)
-    );
-    
-    onValue(predictionRef, (snapshot) => {
-        if (snapshot.exists()) {
-            const data = snapshot.val();
-            
-            // Get latest prediction
-            const entries = Object.entries(data);
-            if (entries.length > 0) {
-                const [timestamp, prediction] = entries[0];
-                latestPrediction = prediction;
-                
-                // Update quality indicator
-                updateQualityIndicator(
-                    prediction.quality_label,
-                    prediction.cluster,
-                    prediction.quality_code
-                );
-                
-                console.log('✅ Prediction updated:', prediction.quality_label);
-            }
-        } else {
-            console.log('⚠️ No prediction data available');
-        }
-    }, (error) => {
-        console.error('❌ Error reading predictions:', error);
-    });
+function listenPredictions() {
+  const q = query(ref(database, 'predictions'), orderByKey(), limitToLast(1));
+
+  onValue(q, (snap) => {
+    if (!snap.exists()) return;
+
+    const entries = Object.entries(snap.val());
+    if (!entries.length) return;
+
+    const [ts, pred] = entries[0];
+    latestPrediction = pred;
+
+    setQualityBanner(pred.quality_label, pred.cluster, pred.quality_code);
+    setMLResult(pred.quality_label, pred.cluster, pred.quality_code, ts);
+
+    console.log('✅ Prediction updated:', pred.quality_label);
+  }, (err) => {
+    console.error('❌ Prediction error:', err);
+  });
 }
 
-// ========================================
-// INITIALIZATION
-// ========================================
+// ================================================
+// ML REFRESH (triggered by button via custom event)
+// ================================================
 
-/**
- * Initialize dashboard
- */
-function initDashboard() {
-    console.log('🚀 Initializing FILTORA Dashboard...');
-    
-    // Start listening to Firebase
-    listenToSensorData();
-    listenToPredictions();
-    
-    // Initial connection status
-    updateConnectionStatus(false);
-    
-    console.log('✅ Dashboard initialized');
+window.addEventListener('mlRefreshRequested', async () => {
+  const tsEl = document.getElementById('mlTs');
+  try {
+    // Force a one-time read of the latest prediction
+    const q    = query(ref(database, 'predictions'), orderByKey(), limitToLast(1));
+    const snap = await get(q);
+
+    if (snap.exists()) {
+      const entries = Object.entries(snap.val());
+      if (entries.length) {
+        const [ts, pred] = entries[0];
+        latestPrediction = pred;
+        setQualityBanner(pred.quality_label, pred.cluster, pred.quality_code);
+        setMLResult(pred.quality_label, pred.cluster, pred.quality_code, ts);
+        if (tsEl) tsEl.textContent = `Diperbarui: ${formatTimestamp(ts)}`;
+        console.log('🔄 ML refresh complete:', pred.quality_label);
+      }
+    } else {
+      if (tsEl) tsEl.textContent = 'Belum ada data prediksi di Firebase.';
+    }
+  } catch (err) {
+    console.error('❌ ML refresh error:', err);
+    if (tsEl) tsEl.textContent = 'Gagal memuat prediksi. Cek koneksi Firebase.';
+  }
+});
+
+// ================================================
+// INIT
+// ================================================
+
+function init() {
+  console.log('🚀 FILTORA Dashboard — initializing...');
+  setConnectionStatus(false);
+  listenSensorData();
+  listenPredictions();
+  console.log('✅ Firebase listeners active');
 }
 
-// Start when DOM is ready
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initDashboard);
+  document.addEventListener('DOMContentLoaded', init);
 } else {
-    initDashboard();
+  init();
 }
 
-// Export for use in other modules
 export { sensorDataHistory, latestSensorData, latestPrediction };

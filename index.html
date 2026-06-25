@@ -1,411 +1,500 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FILTORA - Dashboard Kualitas Udara</title>
-    
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
-    
-    <!-- Custom CSS -->
-    <style>
-        :root {
-            --color-baik: #28a745;
-            --color-sedang: #ffc107;
-            --color-buruk: #dc3545;
-        }
-        
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
-        .dashboard-container {
-            padding: 20px;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        
-        .dashboard-header {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        
-        .dashboard-header h1 {
-            margin: 0;
-            color: #333;
-            font-weight: bold;
-        }
-        
-        .dashboard-header .subtitle {
-            color: #666;
-            margin-top: 5px;
-        }
-        
-        .status-card {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            height: 100%;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .status-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
-        }
-        
-        .quality-indicator {
-            width: 100%;
-            padding: 30px;
-            border-radius: 15px;
-            text-align: center;
-            color: white;
-            font-size: 2rem;
-            font-weight: bold;
-            margin-bottom: 20px;
-            transition: all 0.3s ease;
-        }
-        
-        .quality-baik {
-            background: linear-gradient(135deg, var(--color-baik) 0%, #20c997 100%);
-        }
-        
-        .quality-sedang {
-            background: linear-gradient(135deg, var(--color-sedang) 0%, #fd7e14 100%);
-        }
-        
-        .quality-buruk {
-            background: linear-gradient(135deg, var(--color-buruk) 0%, #e83e8c 100%);
-        }
-        
-        .sensor-card {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-        }
-        
-        .sensor-card:hover {
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
-        
-        .sensor-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            margin-right: 15px;
-        }
-        
-        .sensor-value {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: #333;
-        }
-        
-        .sensor-label {
-            color: #666;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-        }
-        
-        .sensor-unit {
-            color: #999;
-            font-size: 1rem;
-            margin-left: 5px;
-        }
-        
-        .chart-container {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        
-        .chart-title {
-            font-size: 1.3rem;
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 20px;
-        }
-        
-        .loading-spinner {
-            text-align: center;
-            padding: 50px;
-        }
-        
-        .last-update {
-            background: rgba(255,255,255,0.9);
-            padding: 10px 20px;
-            border-radius: 20px;
-            display: inline-block;
-            color: #666;
-            font-size: 0.9rem;
-        }
-        
-        .connection-status {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 10px 20px;
-            border-radius: 20px;
-            background: white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            z-index: 1000;
-        }
-        
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 8px;
-            animation: pulse 2s infinite;
-        }
-        
-        .status-connected {
-            background: #28a745;
-        }
-        
-        .status-connecting {
-            background: #ffc107;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        .stats-row {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        
-        .stat-item {
-            flex: 1;
-            min-width: 150px;
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-        }
-        
-        .stat-value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #667eea;
-        }
-        
-        .stat-label {
-            color: #666;
-            font-size: 0.85rem;
-            margin-top: 5px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FILTORA — Air Quality Dashboard</title>
+
+  <!-- Google Fonts: Space Grotesk -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+
+  <style>
+    /* ================================================
+       NEO BRUTALISM — FILTORA DASHBOARD
+    ================================================ */
+    :root {
+      --bg:        #FDFCF0;
+      --card:      #FFFFFF;
+      --ink:       #1A1A1A;
+      --ink-light: #666666;
+      --yellow:    #FFE500;
+      --green:     #00C060;
+      --red:       #FF3030;
+      --blue:      #1655F5;
+      --orange:    #FF7300;
+      --purple:    #8B2BE2;
+      --cyan:      #00C9E8;
+      --b:         3px;
+      --sh:        5px 5px 0px var(--ink);
+      --sh-lg:     8px 8px 0px var(--ink);
+      --sh-sm:     3px 3px 0px var(--ink);
+    }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family: 'Space Grotesk', 'Arial Black', sans-serif;
+      background-color: var(--bg);
+      background-image: radial-gradient(circle, rgba(0,0,0,.13) 1.5px, transparent 1.5px);
+      background-size: 28px 28px;
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    .wrap { max-width: 1440px; margin: 0 auto; padding: 28px 24px; }
+
+    /* ---- HEADER ---- */
+    .hdr {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--yellow);
+      border: var(--b) solid var(--ink);
+      box-shadow: var(--sh-lg);
+      padding: 20px 28px;
+      margin-bottom: 20px;
+    }
+
+    .hdr-logo { display: flex; align-items: center; gap: 14px; }
+
+    .hdr-icon {
+      width: 52px; height: 52px;
+      background: var(--ink); color: var(--yellow);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem;
+      border: var(--b) solid var(--ink);
+      flex-shrink: 0;
+    }
+
+    .hdr-title { font-size: 2.2rem; font-weight: 800; letter-spacing: -1px; line-height: 1; }
+    .hdr-sub   { font-size: .68rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; opacity: .65; margin-top: 3px; }
+
+    .hdr-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+
+    .badge-conn {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--card);
+      border: var(--b) solid var(--ink);
+      box-shadow: var(--sh-sm);
+      padding: 7px 16px;
+      font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px;
+    }
+
+    .dot { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--ink); flex-shrink: 0; }
+    .dot.on  { background: var(--green); }
+    .dot.off { background: var(--red); animation: blink 1s infinite; }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+    .badge-time { font-size: .7rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-light); }
+
+    /* ---- QUALITY BANNER ---- */
+    .quality-banner {
+      display: grid; grid-template-columns: 1fr auto;
+      border: var(--b) solid var(--ink);
+      box-shadow: var(--sh-lg);
+      margin-bottom: 20px; overflow: hidden;
+    }
+
+    .quality-left { padding: 28px 32px; transition: background .35s ease; }
+
+    .quality-chip {
+      display: inline-block;
+      background: var(--ink); color: #fff;
+      font-size: .62rem; font-weight: 800; letter-spacing: 3px; text-transform: uppercase;
+      padding: 4px 12px; margin-bottom: 14px;
+    }
+
+    .quality-big  { font-size: 4.5rem; font-weight: 800; letter-spacing: -3px; line-height: 1; text-transform: uppercase; }
+    .quality-desc { font-size: .95rem; font-weight: 500; color: var(--ink-light); margin-top: 10px; }
+
+    .quality-right {
+      border-left: var(--b) solid var(--ink);
+      background: var(--card);
+      display: flex; flex-direction: column; justify-content: center; gap: 0;
+      min-width: 180px;
+    }
+
+    .q-stat { padding: 24px 28px; text-align: center; }
+    .q-stat + .q-stat { border-top: var(--b) solid var(--ink); }
+    .q-stat-val { font-size: 2.8rem; font-weight: 800; color: var(--blue); line-height: 1; }
+    .q-stat-lbl { font-size: .62rem; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: var(--ink-light); margin-top: 5px; }
+
+    .q-baik   { background: #B6F4C0; }
+    .q-sedang { background: #FFF0A0; }
+    .q-buruk  { background: #FFCACA; }
+
+    /* ---- SECTION LABEL ---- */
+    .sec-label {
+      display: flex; align-items: center; gap: 10px;
+      font-size: .68rem; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: var(--ink-light);
+      margin-bottom: 14px;
+    }
+    .sec-label::after { content:''; flex:1; height: 2px; background: var(--ink); }
+
+    /* ---- SENSOR GRID ---- */
+    .sensor-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 12px; margin-bottom: 20px;
+    }
+
+    .s-card {
+      background: var(--card);
+      border: var(--b) solid var(--ink);
+      box-shadow: var(--sh-sm);
+      padding: 0 0 16px 0;
+      transition: transform .1s, box-shadow .1s;
+      cursor: default;
+    }
+
+    .s-card:hover { transform: translate(-2px,-2px); box-shadow: var(--sh); }
+
+    .s-accent { height: 5px; }
+    .s-inner  { padding: 12px 14px 0; }
+    .s-name   { font-size: .6rem; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; color: var(--ink-light); margin-bottom: 8px; }
+    .s-val    { font-size: 2rem; font-weight: 800; letter-spacing: -1px; line-height: 1; }
+    .s-unit   { font-size: .68rem; font-weight: 600; color: var(--ink-light); display: block; margin-top: 5px; }
+
+    /* ---- ML SECTION ---- */
+    .ml-wrap {
+      border: var(--b) solid var(--ink);
+      box-shadow: var(--sh-lg);
+      background: var(--card);
+      margin-bottom: 20px; overflow: hidden;
+    }
+
+    .ml-hdr {
+      background: var(--ink); color: var(--yellow);
+      padding: 14px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+
+    .ml-hdr-title {
+      font-size: .85rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    .ml-hdr-sub { font-size: .62rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; opacity: .55; }
+
+    .ml-body {
+      padding: 20px 24px;
+      display: grid; grid-template-columns: 1fr 1fr 1fr auto;
+      gap: 14px; align-items: start;
+    }
+
+    .ml-box {
+      background: var(--bg);
+      border: var(--b) solid var(--ink);
+      box-shadow: var(--sh-sm);
+      padding: 18px 16px; text-align: center;
+    }
+
+    .ml-box-val { font-size: 1.6rem; font-weight: 800; }
+    .ml-box-lbl { font-size: .62rem; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: var(--ink-light); margin-top: 6px; }
+
+    .ml-action { display: flex; flex-direction: column; gap: 10px; }
+
+    .btn-refresh {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: var(--yellow); color: var(--ink);
+      border: var(--b) solid var(--ink);
+      box-shadow: var(--sh);
+      padding: 14px 20px;
+      font-family: inherit;
+      font-size: .78rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+      cursor: pointer;
+      transition: transform .1s, box-shadow .1s;
+      white-space: nowrap;
+    }
+
+    .btn-refresh:hover  { transform: translate(-2px,-2px); box-shadow: 7px 7px 0px var(--ink); }
+    .btn-refresh:active { transform: translate(2px,2px);   box-shadow: 2px 2px 0px var(--ink); }
+    .btn-refresh:disabled { opacity: .55; cursor: default; transform: none; }
+
+    .ml-ts { font-size: .68rem; font-weight: 600; color: var(--ink-light); text-align: center; line-height: 1.5; }
+
+    /* ---- CHARTS ---- */
+    .chart-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 16px; margin-bottom: 20px;
+    }
+
+    .chart-card {
+      background: var(--card);
+      border: var(--b) solid var(--ink);
+      box-shadow: var(--sh); overflow: hidden;
+    }
+
+    .chart-card.full { grid-column: 1 / -1; }
+
+    .chart-hdr {
+      background: var(--bg);
+      border-bottom: var(--b) solid var(--ink);
+      padding: 13px 20px;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .chart-hdr-dot { width: 13px; height: 13px; border: 2px solid var(--ink); flex-shrink: 0; }
+    .chart-hdr-title { font-size: .7rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
+    .chart-body { padding: 18px 20px 14px; }
+
+    /* ---- FOOTER ---- */
+    .footer {
+      border-top: var(--b) solid var(--ink);
+      padding: 18px 0 6px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: .65rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--ink-light);
+    }
+
+    /* ---- SPIN ---- */
+    @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+    .spinning { animation: spin .8s linear infinite; display: inline-block; }
+
+    /* ---- RESPONSIVE ---- */
+    @media (max-width: 1200px) {
+      .sensor-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (max-width: 900px) {
+      .sensor-grid  { grid-template-columns: repeat(3, 1fr); }
+      .chart-grid   { grid-template-columns: 1fr; }
+      .chart-card.full { grid-column: auto; }
+      .quality-banner { grid-template-columns: 1fr; }
+      .quality-right  { border-left: none; border-top: var(--b) solid var(--ink); flex-direction: row; min-width: unset; }
+      .q-stat + .q-stat { border-top: none; border-left: var(--b) solid var(--ink); }
+      .ml-body { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 640px) {
+      .sensor-grid { grid-template-columns: repeat(2, 1fr); }
+      .hdr { flex-direction: column; gap: 16px; }
+      .hdr-right { align-items: flex-start; }
+      .hdr-title { font-size: 1.6rem; }
+      .quality-big { font-size: 2.8rem; }
+      .ml-body { grid-template-columns: 1fr; }
+      .footer { flex-direction: column; gap: 4px; text-align: center; }
+    }
+  </style>
 </head>
 <body>
-    <!-- Connection Status -->
-    <div class="connection-status">
-        <span class="status-dot status-connecting" id="statusDot"></span>
-        <span id="statusText">Menghubungkan...</span>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <header class="hdr">
+    <div class="hdr-logo">
+      <div class="hdr-icon"><i class="bi bi-wind"></i></div>
+      <div>
+        <div class="hdr-title">FILTORA</div>
+        <div class="hdr-sub">Smart Air Purifier &mdash; Monitoring Dashboard</div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <div class="badge-conn">
+        <span class="dot off" id="statusDot"></span>
+        <span id="statusText">MENGHUBUNGKAN...</span>
+      </div>
+      <div class="badge-time" id="lastUpdate">
+        <i class="bi bi-clock"></i>&nbsp;Memuat data...
+      </div>
+    </div>
+  </header>
+
+  <!-- QUALITY BANNER -->
+  <div class="quality-banner">
+    <div class="quality-left q-sedang" id="qualityIndicator">
+      <div class="quality-chip">Kualitas Udara Saat Ini</div>
+      <div class="quality-big" id="qualityLabel">MEMUAT</div>
+      <div class="quality-desc" id="qualitySubtext">Menunggu data dari sensor...</div>
+    </div>
+    <div class="quality-right">
+      <div class="q-stat">
+        <div class="q-stat-val" id="statCluster">—</div>
+        <div class="q-stat-lbl">Cluster</div>
+      </div>
+      <div class="q-stat">
+        <div class="q-stat-val" id="statCode">—</div>
+        <div class="q-stat-lbl">Kode</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SENSOR READINGS -->
+  <div class="sec-label"><i class="bi bi-cpu-fill"></i> Pembacaan Sensor Real-time</div>
+  <div class="sensor-grid">
+
+    <div class="s-card">
+      <div class="s-accent" style="background:var(--blue)"></div>
+      <div class="s-inner">
+        <div class="s-name">MQ135</div>
+        <div class="s-val" id="sensorMQ135">—</div>
+        <span class="s-unit">ppm &middot; Kualitas Udara</span>
+      </div>
     </div>
 
-    <div class="dashboard-container">
-        <!-- Header -->
-        <div class="dashboard-header">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1><i class="bi bi-cloud-check"></i> FILTORA Dashboard</h1>
-                    <p class="subtitle mb-0">Monitoring Kualitas Udara Real-time</p>
-                </div>
-                <div class="last-update" id="lastUpdate">
-                    <i class="bi bi-clock"></i> Memuat data...
-                </div>
-            </div>
-        </div>
-
-        <!-- Main Content -->
-        <div class="row">
-            <!-- Left Column: Quality Status & Sensor Data -->
-            <div class="col-lg-4">
-                <!-- Quality Indicator -->
-                <div class="status-card mb-3">
-                    <div class="quality-indicator quality-sedang" id="qualityIndicator">
-                        <div id="qualityLabel">Memuat...</div>
-                        <div style="font-size: 1rem; margin-top: 10px; opacity: 0.9;" id="qualitySubtext">
-                            Menunggu data...
-                        </div>
-                    </div>
-                    
-                    <!-- Statistics -->
-                    <div class="stats-row">
-                        <div class="stat-item">
-                            <div class="stat-value" id="statCluster">-</div>
-                            <div class="stat-label">Cluster</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-value" id="statCode">-</div>
-                            <div class="stat-label">Kode</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Sensor Cards - Gas Sensors -->
-                <div class="status-card mb-3">
-                    <h5 class="mb-3"><i class="bi bi-activity"></i> Sensor Gas</h5>
-                    
-                    <div class="sensor-card">
-                        <div class="d-flex align-items-center">
-                            <div class="sensor-icon" style="background: #e3f2fd; color: #2196f3;">
-                                <i class="bi bi-wind"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <div class="sensor-label">MQ135 (Kualitas Udara)</div>
-                                <div class="sensor-value" id="sensorMQ135">-<span class="sensor-unit">ppm</span></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="sensor-card">
-                        <div class="d-flex align-items-center">
-                            <div class="sensor-icon" style="background: #fff3e0; color: #ff9800;">
-                                <i class="bi bi-smoke"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <div class="sensor-label">MQ2 (Asap)</div>
-                                <div class="sensor-value" id="sensorMQ2">-<span class="sensor-unit">ppm</span></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="sensor-card">
-                        <div class="d-flex align-items-center">
-                            <div class="sensor-icon" style="background: #fce4ec; color: #e91e63;">
-                                <i class="bi bi-fire"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <div class="sensor-label">MQ5 (LPG/Gas)</div>
-                                <div class="sensor-value" id="sensorMQ5">-<span class="sensor-unit">ppm</span></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Sensor Cards - Particulate Matter -->
-                <div class="status-card mb-3">
-                    <h5 class="mb-3"><i class="bi bi-droplet"></i> Partikel</h5>
-                    
-                    <div class="sensor-card">
-                        <div class="d-flex align-items-center">
-                            <div class="sensor-icon" style="background: #f3e5f5; color: #9c27b0;">
-                                <i class="bi bi-circle"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <div class="sensor-label">PM2.5</div>
-                                <div class="sensor-value" id="sensorPM25">-<span class="sensor-unit">µg/m³</span></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="sensor-card">
-                        <div class="d-flex align-items-center">
-                            <div class="sensor-icon" style="background: #e8f5e9; color: #4caf50;">
-                                <i class="bi bi-circle-fill"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <div class="sensor-label">PM10</div>
-                                <div class="sensor-value" id="sensorPM10">-<span class="sensor-unit">µg/m³</span></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Sensor Cards - Environment -->
-                <div class="status-card">
-                    <h5 class="mb-3"><i class="bi bi-thermometer-half"></i> Lingkungan</h5>
-                    
-                    <div class="sensor-card">
-                        <div class="d-flex align-items-center">
-                            <div class="sensor-icon" style="background: #ffebee; color: #f44336;">
-                                <i class="bi bi-thermometer"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <div class="sensor-label">Suhu</div>
-                                <div class="sensor-value" id="sensorTemp">-<span class="sensor-unit">°C</span></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="sensor-card">
-                        <div class="d-flex align-items-center">
-                            <div class="sensor-icon" style="background: #e0f7fa; color: #00bcd4;">
-                                <i class="bi bi-moisture"></i>
-                            </div>
-                            <div class="flex-grow-1">
-                                <div class="sensor-label">Kelembapan</div>
-                                <div class="sensor-value" id="sensorHumid">-<span class="sensor-unit">%</span></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right Column: Charts -->
-            <div class="col-lg-8">
-                <!-- PM Chart -->
-                <div class="chart-container">
-                    <div class="chart-title">
-                        <i class="bi bi-graph-up"></i> Trend Partikulat (PM2.5 & PM10)
-                    </div>
-                    <canvas id="pmChart" height="80"></canvas>
-                </div>
-
-                <!-- Gas Sensors Chart -->
-                <div class="chart-container">
-                    <div class="chart-title">
-                        <i class="bi bi-bar-chart-line"></i> Trend Sensor Gas (MQ135, MQ2, MQ5)
-                    </div>
-                    <canvas id="gasChart" height="80"></canvas>
-                </div>
-
-                <!-- Environment Chart -->
-                <div class="chart-container">
-                    <div class="chart-title">
-                        <i class="bi bi-cloud-sun"></i> Kondisi Lingkungan (Suhu & Kelembapan)
-                    </div>
-                    <canvas id="envChart" height="80"></canvas>
-                </div>
-            </div>
-        </div>
+    <div class="s-card">
+      <div class="s-accent" style="background:var(--orange)"></div>
+      <div class="s-inner">
+        <div class="s-name">MQ2</div>
+        <div class="s-val" id="sensorMQ2">—</div>
+        <span class="s-unit">ppm &middot; Asap / Gas</span>
+      </div>
     </div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Firebase SDK (Modular v9+) -->
-    <script type="module" src="firebase.js"></script>
-    
-    <!-- Chart Configuration -->
-    <script type="module" src="chart.js"></script>
+    <div class="s-card">
+      <div class="s-accent" style="background:var(--red)"></div>
+      <div class="s-inner">
+        <div class="s-name">MQ5</div>
+        <div class="s-val" id="sensorMQ5">—</div>
+        <span class="s-unit">ppm &middot; LPG</span>
+      </div>
+    </div>
+
+    <div class="s-card">
+      <div class="s-accent" style="background:var(--purple)"></div>
+      <div class="s-inner">
+        <div class="s-name">PM2.5</div>
+        <div class="s-val" id="sensorPM25">—</div>
+        <span class="s-unit">&micro;g/m&sup3; &middot; Partikel</span>
+      </div>
+    </div>
+
+    <div class="s-card">
+      <div class="s-accent" style="background:var(--green)"></div>
+      <div class="s-inner">
+        <div class="s-name">PM10</div>
+        <div class="s-val" id="sensorPM10">—</div>
+        <span class="s-unit">&micro;g/m&sup3; &middot; Debu</span>
+      </div>
+    </div>
+
+    <div class="s-card">
+      <div class="s-accent" style="background:var(--red)"></div>
+      <div class="s-inner">
+        <div class="s-name">Suhu</div>
+        <div class="s-val" id="sensorTemp">—</div>
+        <span class="s-unit">&deg;C &middot; Temperatur</span>
+      </div>
+    </div>
+
+    <div class="s-card">
+      <div class="s-accent" style="background:var(--cyan)"></div>
+      <div class="s-inner">
+        <div class="s-name">Kelembapan</div>
+        <div class="s-val" id="sensorHumid">—</div>
+        <span class="s-unit">% &middot; Humidity</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ML PREDICTION -->
+  <div class="sec-label"><i class="bi bi-robot"></i> Machine Learning &mdash; Prediksi Kualitas Otomatis</div>
+  <div class="ml-wrap">
+    <div class="ml-hdr">
+      <div class="ml-hdr-title">
+        <i class="bi bi-diagram-3-fill"></i>
+        Hasil Klasifikasi K-Means Clustering
+      </div>
+      <div class="ml-hdr-sub">Firebase Realtime &bull; Auto-update</div>
+    </div>
+    <div class="ml-body">
+
+      <div class="ml-box">
+        <div class="ml-box-val" id="mlLabel">—</div>
+        <div class="ml-box-lbl">Prediksi Kualitas</div>
+      </div>
+
+      <div class="ml-box">
+        <div class="ml-box-val" id="mlCluster" style="color:var(--blue)">—</div>
+        <div class="ml-box-lbl">Cluster ID</div>
+      </div>
+
+      <div class="ml-box">
+        <div class="ml-box-val" id="mlCode" style="color:var(--purple)">—</div>
+        <div class="ml-box-lbl">Kode Kualitas</div>
+      </div>
+
+      <div class="ml-action">
+        <button class="btn-refresh" id="mlBtn" onclick="doMLRefresh()">
+          <i class="bi bi-arrow-clockwise" id="mlIcon"></i>
+          REFRESH PREDIKSI
+        </button>
+        <div class="ml-ts" id="mlTs">Klik untuk memuat prediksi terbaru dari Firebase</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="sec-label"><i class="bi bi-graph-up-arrow"></i> Grafik Historis &mdash; 20 Data Terakhir</div>
+  <div class="chart-grid">
+
+    <div class="chart-card">
+      <div class="chart-hdr">
+        <div class="chart-hdr-dot" style="background:#8B2BE2"></div>
+        <div class="chart-hdr-dot" style="background:#00C060"></div>
+        <div class="chart-hdr-title">Partikulat &mdash; PM2.5 &amp; PM10</div>
+      </div>
+      <div class="chart-body"><canvas id="pmChart" height="150"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-hdr">
+        <div class="chart-hdr-dot" style="background:#1655F5"></div>
+        <div class="chart-hdr-dot" style="background:#FF7300"></div>
+        <div class="chart-hdr-dot" style="background:#FF3030"></div>
+        <div class="chart-hdr-title">Sensor Gas &mdash; MQ135, MQ2, MQ5</div>
+      </div>
+      <div class="chart-body"><canvas id="gasChart" height="150"></canvas></div>
+    </div>
+
+    <div class="chart-card full">
+      <div class="chart-hdr">
+        <div class="chart-hdr-dot" style="background:#FF3030"></div>
+        <div class="chart-hdr-dot" style="background:#00C9E8"></div>
+        <div class="chart-hdr-title">Kondisi Lingkungan &mdash; Suhu &amp; Kelembapan</div>
+      </div>
+      <div class="chart-body"><canvas id="envChart" height="90"></canvas></div>
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <span>FILTORA &copy; 2025 &mdash; Smart Air Purifier Monitoring System</span>
+    <span>Firebase Realtime DB &middot; K-Means ML &middot; MQTT Pipeline</span>
+  </div>
+
+</div>
+
+<!-- Firebase + Chart modules -->
+<script type="module" src="firebase.js"></script>
+<script type="module" src="chart.js"></script>
+
+<!-- ML Refresh (non-module untuk onclick) -->
+<script>
+  function doMLRefresh() {
+    const btn  = document.getElementById('mlBtn');
+    const icon = document.getElementById('mlIcon');
+    const ts   = document.getElementById('mlTs');
+
+    btn.disabled = true;
+    icon.classList.add('spinning');
+    ts.textContent = 'Memuat prediksi terbaru dari Firebase...';
+
+    window.dispatchEvent(new CustomEvent('mlRefreshRequested'));
+
+    setTimeout(() => {
+      btn.disabled = false;
+      icon.classList.remove('spinning');
+    }, 3000);
+  }
+</script>
 </body>
 </html>
