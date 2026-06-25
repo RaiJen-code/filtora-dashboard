@@ -177,11 +177,32 @@ function listenSensorData() {
 }
 
 function listenPredictions() {
-  const q = query(ref(database, 'predictions'), orderByKey(), limitToLast(1));
+  // Prioritas 1: /latest_prediction (ditulis oleh filtora_ml_clustering.py)
+  // Ini selalu berisi prediksi terbaru, langsung tanpa sort masalah.
+  onValue(ref(database, 'latest_prediction'), (snap) => {
+    if (!snap.exists()) {
+      // Fallback ke /predictions jika /latest_prediction belum ada
+      listenPredictionsLegacy();
+      return;
+    }
 
+    const pred       = snap.val();
+    latestPrediction = pred;
+
+    setQualityBanner(pred.quality_label, pred.cluster, pred.quality_code);
+    setMLResult(pred.quality_label, pred.cluster, pred.quality_code, pred.predicted_at);
+
+    console.log('✅ Latest prediction:', pred.quality_label, '@', pred.predicted_at);
+  }, (err) => {
+    console.error('❌ latest_prediction error:', err);
+  });
+}
+
+function listenPredictionsLegacy() {
+  // Fallback: baca /predictions (data lama, diurutkan by key)
+  const q = query(ref(database, 'predictions'), orderByKey(), limitToLast(1));
   onValue(q, (snap) => {
     if (!snap.exists()) return;
-
     const entries = Object.entries(snap.val());
     if (!entries.length) return;
 
@@ -190,10 +211,9 @@ function listenPredictions() {
 
     setQualityBanner(pred.quality_label, pred.cluster, pred.quality_code);
     setMLResult(pred.quality_label, pred.cluster, pred.quality_code, ts);
-
-    console.log('✅ Prediction updated:', pred.quality_label);
+    console.log('✅ Prediction (legacy):', pred.quality_label);
   }, (err) => {
-    console.error('❌ Prediction error:', err);
+    console.error('❌ Prediction legacy error:', err);
   });
 }
 
@@ -204,10 +224,22 @@ function listenPredictions() {
 window.addEventListener('mlRefreshRequested', async () => {
   const tsEl = document.getElementById('mlTs');
   try {
-    // Force a one-time read of the latest prediction
+    // Coba /latest_prediction dulu (hasil dari filtora_ml_clustering.py terbaru)
+    const latestSnap = await get(ref(database, 'latest_prediction'));
+
+    if (latestSnap.exists()) {
+      const pred       = latestSnap.val();
+      latestPrediction = pred;
+      setQualityBanner(pred.quality_label, pred.cluster, pred.quality_code);
+      setMLResult(pred.quality_label, pred.cluster, pred.quality_code, pred.predicted_at);
+      if (tsEl) tsEl.textContent = `Diperbarui: ${new Date(pred.predicted_at).toLocaleString('id-ID')}`;
+      console.log('🔄 ML refresh (latest_prediction):', pred.quality_label);
+      return;
+    }
+
+    // Fallback ke /predictions jika /latest_prediction belum ada
     const q    = query(ref(database, 'predictions'), orderByKey(), limitToLast(1));
     const snap = await get(q);
-
     if (snap.exists()) {
       const entries = Object.entries(snap.val());
       if (entries.length) {
@@ -216,10 +248,10 @@ window.addEventListener('mlRefreshRequested', async () => {
         setQualityBanner(pred.quality_label, pred.cluster, pred.quality_code);
         setMLResult(pred.quality_label, pred.cluster, pred.quality_code, ts);
         if (tsEl) tsEl.textContent = `Diperbarui: ${formatTimestamp(ts)}`;
-        console.log('🔄 ML refresh complete:', pred.quality_label);
+        console.log('🔄 ML refresh (legacy):', pred.quality_label);
       }
     } else {
-      if (tsEl) tsEl.textContent = 'Belum ada data prediksi di Firebase.';
+      if (tsEl) tsEl.textContent = 'Belum ada prediksi. Jalankan filtora_ml_clustering.py terlebih dahulu.';
     }
   } catch (err) {
     console.error('❌ ML refresh error:', err);
