@@ -1,0 +1,34 @@
+# ===================================================
+# KEAMANAN: JANGAN PERNAH commit file ini ke GitHub!
+# ===================================================
+firebase-key.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.env
+venv/
+env/
+.venv/
+
+# Data & Model files
+*.pkl
+*.h5
+*.model
+storage/
+
+# Editor & OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Temp files (Word lock files)
+~$*
+.$*
+
+# Claude Code session data
+.claude/
